@@ -1,0 +1,66 @@
+Create a role with the following properties.
+   Trusted entity – AWS Lambda.
+   Permissions – AWSLambdaKinesisExecutionRole.
+   Role name – lambda-kinesis-role
+
+Create the lambda function
+
+console.log('Loading function');
+
+exports.handler = function(event, context) {
+    event.Records.forEach(function(record) {
+        // Kinesis data is base64 encoded so decode here
+        var payload = new Buffer(record.kinesis.data, 'base64').toString('ascii');
+        console.log('Decoded payload:', payload);
+    });
+};
+
+Create the Lambda Function:
+
+aws lambda create-function --function-name ProcessKinesisRecord \
+--zip-file fileb://kinesis.zip --handler index.handler --runtime nodejs8.10 \
+--role arn:aws:iam::484231693678:role/lambda-kinesis-role
+
+Create the input file:
+
+{
+    "Records": [
+        {
+            "kinesis": {
+                "partitionKey": "partitionKey-3",
+                "kinesisSchemaVersion": "1.0",
+                "data": "SGVsbG8sIHRoaXMgaXMgYSB0ZXN0IDEyMy4=",
+                "sequenceNumber": "49545115243490985018280067714973144582180062593244200961"
+            },
+            "eventSource": "aws:kinesis",
+            "eventID": "shardId-000000000000:49545115243490985018280067714973144582180062593244200961",
+            "invokeIdentityArn": "arn:aws:iam::account-id:role/testLEBRole",
+            "eventVersion": "1.0",
+            "eventName": "aws:kinesis:record",
+            "eventSourceARN": "arn:aws:kinesis:us-west-2:35667example:stream/examplestream",
+            "awsRegion": "ap-south-1"
+        }
+    ]
+}
+
+
+Test the Lambda function in cloudwatch logs:
+
+aws lambda invoke --invocation-type RequestResponse \
+--function-name ProcessKinesisRecord --payload file://input.txt out.txt
+
+
+Create the Kinesis Streams:
+aws kinesis create-stream --stream-name lambda-stream --shard-count 1
+
+Check the stream:
+aws kinesis describe-stream --stream-name lambda-stream
+
+arn:aws:kinesis:ap-south-1:484231693678:stream/lambda-stream
+efbb867a-8b2c-490c-8ecc-c644c80ec668
+
+Create the mapping of AWS Kinesis and Lambda
+aws lambda create-event-source-mapping --function-name ProcessKinesisRecords \
+--event-source  arn:aws:kinesis:ap-south-1:484231693678:stream/lambda-stream \
+--batch-size 100 --starting-position TRIM_HORIZON
+
